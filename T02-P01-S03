@@ -1,0 +1,297 @@
+package es.ubu.gii.edat.P01;
+
+import java.util.Arrays;
+
+import es.ubu.gii.edat.P01.data.DataLoader;
+
+/**
+ * Práctica 01 - Estructuras de Datos.
+ * Implementación del problema 3-sum con dos aproximaciones:
+ * fuerza bruta y versión ordenada con dos punteros.
+ */
+public class ThreeSumCalculation {
+
+    /**
+     * Método principal para ejecutar experimentos de tiempos con distintos
+     * ficheros de entrada.
+     *
+     * @param args argumentos de línea de comandos
+     */
+    public static void main(String[] args) {
+
+        String[] files = {
+            "./data/1Kints.txt",
+            "./data/2Kints.txt",
+            "./data/4Kints.txt",
+            "./data/8Kints.txt",
+            "./data/16Kints.txt",
+            "./data/32Kints.txt"
+        };
+
+        /*
+         * Si quieres medir Random también para 16K y 32K, pon esto a true.
+         * OJO: 32K en fuerza bruta puede tardar muchísimo tiempo.
+         */
+        boolean ejecutarRandomEnTodos = true;
+
+        System.out.println("Fichero\tN\tTripletasRandom\tTiempoRandom(ms)\tTripletasOrdered\tTiempoOrdered(ms)");
+
+        for (String file : files) {
+            DataLoader in = new DataLoader();
+            in.LoadFile(file);
+            int[] a = in.readAllInts();
+            in.close();
+
+            String tripletasRandomTexto = "-";
+            String tiempoRandomTexto = "-";
+
+            if (ejecutarRandomEnTodos || a.length <= 8000) {
+                long inicioRandom = System.nanoTime();
+                int[][] random = findTriplets_random(a);
+                long finRandom = System.nanoTime();
+
+                double tiempoRandom = (finRandom - inicioRandom) / 1_000_000.0;
+                tripletasRandomTexto = String.valueOf(random.length);
+                tiempoRandomTexto = String.valueOf(tiempoRandom);
+            }
+
+            long inicioOrdered = System.nanoTime();
+            int[][] ordered = findTriplets_ordered(a);
+            long finOrdered = System.nanoTime();
+
+            double tiempoOrdered = (finOrdered - inicioOrdered) / 1_000_000.0;
+
+            System.out.println(file + "\t" + a.length + "\t" + tripletasRandomTexto + "\t\t"
+                    + tiempoRandomTexto + "\t\t" + ordered.length + "\t\t" + tiempoOrdered);
+        }
+    }
+
+    /**
+     * Resuelve el problema 3-sum mediante fuerza bruta.
+     *
+     * Se recorren todas las combinaciones posibles de tres elementos diferentes
+     * del array mediante tres bucles anidados.
+     *
+     * Cuando una combinación suma 0, se ordena la tripleta y se evita insertar
+     * duplicados.
+     *
+     * @param a array de entrada
+     * @return matriz con todas las tripletas distintas cuya suma es 0
+     */
+    public static int[][] findTriplets_random(int[] a) {
+
+        if (a == null || a.length < 3) {
+            return new int[0][0];
+        }
+
+        int[][] temp = new int[10][3];
+        int count = 0;
+
+        for (int i = 0; i < a.length - 2; i++) {
+            for (int j = i + 1; j < a.length - 1; j++) {
+                for (int k = j + 1; k < a.length; k++) {
+
+                    if (a[i] + a[j] + a[k] == 0) {
+                        int[] tripleta = ordenarTres(a[i], a[j], a[k]);
+
+                        if (!containsTriplet(temp, count, tripleta)) {
+                            temp = ensureCapacity(temp, count);
+
+                            temp[count][0] = tripleta[0];
+                            temp[count][1] = tripleta[1];
+                            temp[count][2] = tripleta[2];
+                            count++;
+                        }
+                    }
+                }
+            }
+        }
+
+        return trimResult(temp, count);
+    }
+
+    /**
+     * Resuelve el problema 3-sum mediante una aproximación eficiente:
+     *
+     * 1. Se hace una copia del array original.
+     * 2. Se ordena la copia.
+     * 3. Se fija un elemento b[i].
+     * 4. Se buscan otros dos elementos con dos punteros:
+     *    left (izquierda) y right (derecha).
+     *
+     * Esta versión evita duplicados directamente durante el recorrido, por lo que
+     * ya no necesita llamar a containsTriplet.
+     *
+     * Complejidad aproximada: O(n^2)
+     *
+     * @param a array de entrada
+     * @return matriz con todas las tripletas distintas cuya suma es 0
+     */
+    public static int[][] findTriplets_ordered(int[] a) {
+
+        if (a == null || a.length < 3) {
+            return new int[0][0];
+        }
+
+        int[] b = Arrays.copyOf(a, a.length);
+        Arrays.sort(b);
+
+        int[][] temp = new int[10][3];
+        int count = 0;
+
+        for (int i = 0; i < b.length - 2; i++) {
+
+            // Evita repetir el mismo primer valor
+            if (i > 0 && b[i] == b[i - 1]) {
+                continue;
+            }
+
+            int left = i + 1;
+            int right = b.length - 1;
+
+            while (left < right) {
+                int suma = b[i] + b[left] + b[right];
+
+                if (suma == 0) {
+                    temp = ensureCapacity(temp, count);
+                    temp[count][0] = b[i];
+                    temp[count][1] = b[left];
+                    temp[count][2] = b[right];
+                    count++;
+
+                    int valorLeft = b[left];
+                    int valorRight = b[right];
+
+                    // Saltar duplicados del segundo valor
+                    while (left < right && b[left] == valorLeft) {
+                        left++;
+                    }
+
+                    // Saltar duplicados del tercer valor
+                    while (left < right && b[right] == valorRight) {
+                        right--;
+                    }
+
+                } else if (suma < 0) {
+                    left++;
+                } else {
+                    right--;
+                }
+            }
+        }
+
+        return trimResult(temp, count);
+    }
+
+    /**
+     * Realiza una búsqueda binaria sobre un array ordenado completo.
+     *
+     * @param array array ordenado donde buscar
+     * @param buscado valor a localizar
+     * @return posición del elemento o valor negativo si no se encuentra
+     */
+    public static int busquedaBinaria(int[] array, int buscado) {
+        return busquedaBinariaRango(array, buscado, 0, array.length - 1);
+    }
+
+    /**
+     * Realiza una búsqueda binaria dentro de un rango concreto del array.
+     *
+     * @param array array ordenado
+     * @param buscado valor a localizar
+     * @param izquierda límite inferior del rango
+     * @param derecha límite superior del rango
+     * @return posición del elemento o valor negativo si no se encuentra
+     */
+    private static int busquedaBinariaRango(int[] array, int buscado, int izquierda, int derecha) {
+
+        while (izquierda <= derecha) {
+            int centro = izquierda + (derecha - izquierda) / 2;
+
+            if (array[centro] == buscado) {
+                return centro;
+            } else if (buscado < array[centro]) {
+                derecha = centro - 1;
+            } else {
+                izquierda = centro + 1;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * Ordena tres enteros de menor a mayor.
+     *
+     * @param x primer valor
+     * @param y segundo valor
+     * @param z tercer valor
+     * @return array de tres enteros ordenado ascendentemente
+     */
+    private static int[] ordenarTres(int x, int y, int z) {
+        int[] t = { x, y, z };
+        Arrays.sort(t);
+        return t;
+    }
+
+    /**
+     * Comprueba si una tripleta ya existe en las primeras posiciones válidas
+     * de una matriz de resultados.
+     *
+     * @param matrix matriz donde se almacenan tripletas
+     * @param used número de filas válidas actualmente ocupadas
+     * @param triplet tripleta a comprobar
+     * @return true si la tripleta ya existe, false en caso contrario
+     */
+    private static boolean containsTriplet(int[][] matrix, int used, int[] triplet) {
+        for (int i = 0; i < used; i++) {
+            if (matrix[i][0] == triplet[0]
+                    && matrix[i][1] == triplet[1]
+                    && matrix[i][2] == triplet[2]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Asegura que la matriz de resultados tenga capacidad suficiente.
+     * Si no la tiene, crea una nueva con el doble de tamaño y copia el contenido.
+     *
+     * @param matrix matriz actual
+     * @param used número de filas utilizadas
+     * @return matriz con capacidad suficiente
+     */
+    private static int[][] ensureCapacity(int[][] matrix, int used) {
+        if (used < matrix.length) {
+            return matrix;
+        }
+
+        int newSize = matrix.length * 2;
+        if (newSize == 0) {
+            newSize = 1;
+        }
+
+        int[][] nueva = new int[newSize][3];
+        for (int i = 0; i < matrix.length; i++) {
+            nueva[i] = matrix[i];
+        }
+
+        return nueva;
+    }
+
+    /**
+     * Devuelve una copia de la matriz con exactamente el número de filas usadas.
+     *
+     * @param matrix matriz original
+     * @param used número de filas válidas
+     * @return matriz ajustada al tamaño real
+     */
+    private static int[][] trimResult(int[][] matrix, int used) {
+        int[][] result = new int[used][3];
+        for (int i = 0; i < used; i++) {
+            result[i] = matrix[i];
+        }
+        return result;
+    }
+}
