@@ -6,21 +6,14 @@ import es.ubu.gii.edat.P01.data.DataLoader;
 
 /**
  * Práctica 01 - Estructuras de Datos.
- * Autor: [TU NOMBRE Y APELLIDOS]
- * A:GML - Implementación del problema 3-sum con dos aproximaciones:
- * fuerza bruta y versión ordenada con búsqueda binaria.
+ * Implementación del problema 3-sum con dos aproximaciones:
+ * fuerza bruta y versión ordenada con dos punteros.
  */
 public class ThreeSumCalculation {
 
     /**
      * Método principal para ejecutar experimentos de tiempos con distintos
      * ficheros de entrada.
-     *
-     * Se cargan varios ficheros de distinto tamaño y se mide el tiempo empleado
-     * por cada uno de los dos algoritmos.
-     *
-     * Nota: la versión de fuerza bruta puede tardar demasiado en tamaños grandes,
-     * por lo que aquí se limita su ejecución a tamaños moderados.
      *
      * @param args argumentos de línea de comandos
      */
@@ -35,6 +28,12 @@ public class ThreeSumCalculation {
             "./data/32Kints.txt"
         };
 
+        /*
+         * Si quieres medir Random también para 16K y 32K, pon esto a true.
+         * OJO: 32K en fuerza bruta puede tardar muchísimo tiempo.
+         */
+        boolean ejecutarRandomEnTodos = true;
+
         System.out.println("Fichero\tN\tTripletasRandom\tTiempoRandom(ms)\tTripletasOrdered\tTiempoOrdered(ms)");
 
         for (String file : files) {
@@ -46,12 +45,7 @@ public class ThreeSumCalculation {
             String tripletasRandomTexto = "-";
             String tiempoRandomTexto = "-";
 
-            /*
-             * La versión de fuerza bruta tiene complejidad muy alta.
-             * Para evitar ejecuciones excesivamente largas, solo se mide
-             * hasta 8K elementos.
-             */
-            if (a.length <= 8000) {
+            if (ejecutarRandomEnTodos || a.length <= 8000) {
                 long inicioRandom = System.nanoTime();
                 int[][] random = findTriplets_random(a);
                 long finRandom = System.nanoTime();
@@ -78,8 +72,8 @@ public class ThreeSumCalculation {
      * Se recorren todas las combinaciones posibles de tres elementos diferentes
      * del array mediante tres bucles anidados.
      *
-     * Cuando una combinación suma 0, se ordena la tripleta para compararla
-     * correctamente con las ya encontradas y así evitar duplicados.
+     * Cuando una combinación suma 0, se ordena la tripleta y se evita insertar
+     * duplicados.
      *
      * @param a array de entrada
      * @return matriz con todas las tripletas distintas cuya suma es 0
@@ -90,10 +84,6 @@ public class ThreeSumCalculation {
             return new int[0][0];
         }
 
-        /*
-         * Se empieza con una capacidad pequeña y se amplía dinámicamente
-         * cuando sea necesario. Así evitamos reservar un array gigantesco.
-         */
         int[][] temp = new int[10][3];
         int count = 0;
 
@@ -104,10 +94,6 @@ public class ThreeSumCalculation {
                     if (a[i] + a[j] + a[k] == 0) {
                         int[] tripleta = ordenarTres(a[i], a[j], a[k]);
 
-                        /*
-                         * Solo se añade si no existía ya una tripleta con esos
-                         * mismos valores.
-                         */
                         if (!containsTriplet(temp, count, tripleta)) {
                             temp = ensureCapacity(temp, count);
 
@@ -125,15 +111,18 @@ public class ThreeSumCalculation {
     }
 
     /**
-     * Resuelve el problema 3-sum mediante una aproximación más eficiente:
+     * Resuelve el problema 3-sum mediante una aproximación eficiente:
      *
      * 1. Se hace una copia del array original.
      * 2. Se ordena la copia.
-     * 3. Se recorren parejas de elementos mediante dos bucles.
-     * 4. Para cada pareja se calcula el valor faltante para sumar 0.
-     * 5. Ese valor se busca mediante búsqueda binaria en la parte derecha del array.
+     * 3. Se fija un elemento b[i].
+     * 4. Se buscan otros dos elementos con dos punteros:
+     *    left (izquierda) y right (derecha).
      *
-     * El array original no se modifica, ya que se trabaja sobre una copia.
+     * Esta versión evita duplicados directamente durante el recorrido, por lo que
+     * ya no necesita llamar a containsTriplet.
+     *
+     * Complejidad aproximada: O(n^2)
      *
      * @param a array de entrada
      * @return matriz con todas las tripletas distintas cuya suma es 0
@@ -144,41 +133,49 @@ public class ThreeSumCalculation {
             return new int[0][0];
         }
 
-        // Se copia el array para no modificar el original.
         int[] b = Arrays.copyOf(a, a.length);
         Arrays.sort(b);
 
-        /*
-         * Se usa también una estructura dinámica manual para evitar problemas
-         * de memoria al reservar el máximo teórico de tripletas.
-         */
         int[][] temp = new int[10][3];
         int count = 0;
 
         for (int i = 0; i < b.length - 2; i++) {
-            for (int j = i + 1; j < b.length - 1; j++) {
 
-                int faltante = -(b[i] + b[j]);
+            // Evita repetir el mismo primer valor
+            if (i > 0 && b[i] == b[i - 1]) {
+                continue;
+            }
 
-                /*
-                 * La búsqueda binaria del tercer elemento se hace solo a la derecha
-                 * de j, para garantizar que se usan tres posiciones diferentes y
-                 * mantener el orden i < j < k.
-                 */
-                int pos = busquedaBinariaRango(b, faltante, j + 1, b.length - 1);
+            int left = i + 1;
+            int right = b.length - 1;
 
-                if (pos >= 0) {
-                    int[] tripleta = { b[i], b[j], b[pos] };
+            while (left < right) {
+                int suma = b[i] + b[left] + b[right];
 
-                    // Evita introducir tripletas duplicadas.
-                    if (!containsTriplet(temp, count, tripleta)) {
-                        temp = ensureCapacity(temp, count);
+                if (suma == 0) {
+                    temp = ensureCapacity(temp, count);
+                    temp[count][0] = b[i];
+                    temp[count][1] = b[left];
+                    temp[count][2] = b[right];
+                    count++;
 
-                        temp[count][0] = tripleta[0];
-                        temp[count][1] = tripleta[1];
-                        temp[count][2] = tripleta[2];
-                        count++;
+                    int valorLeft = b[left];
+                    int valorRight = b[right];
+
+                    // Saltar duplicados del segundo valor
+                    while (left < right && b[left] == valorLeft) {
+                        left++;
                     }
+
+                    // Saltar duplicados del tercer valor
+                    while (left < right && b[right] == valorRight) {
+                        right--;
+                    }
+
+                } else if (suma < 0) {
+                    left++;
+                } else {
+                    right--;
                 }
             }
         }
@@ -188,9 +185,6 @@ public class ThreeSumCalculation {
 
     /**
      * Realiza una búsqueda binaria sobre un array ordenado completo.
-     *
-     * Devuelve la posición del elemento buscado si se encuentra,
-     * o un número negativo si no está en el array.
      *
      * @param array array ordenado donde buscar
      * @param buscado valor a localizar
@@ -229,16 +223,13 @@ public class ThreeSumCalculation {
     /**
      * Ordena tres enteros de menor a mayor.
      *
-     * Esto permite comparar tripletas por contenido sin que influya
-     * el orden en el que fueron encontradas.
-     *
      * @param x primer valor
      * @param y segundo valor
      * @param z tercer valor
      * @return array de tres enteros ordenado ascendentemente
      */
     private static int[] ordenarTres(int x, int y, int z) {
-        int[] t = {x, y, z};
+        int[] t = { x, y, z };
         Arrays.sort(t);
         return t;
     }
